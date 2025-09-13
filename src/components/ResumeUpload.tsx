@@ -14,60 +14,50 @@ export function ResumeUpload({ onFileSelect }: ResumeUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const extractTextFromFile = async (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        // Simple text extraction - in a real app, you'd use proper PDF/DOC parsing
-        if (file.type === 'application/pdf') {
-          // Simulate PDF text extraction
-          resolve(`John Doe
-Software Engineer
+    const ext = file.name.split('.').pop()?.toLowerCase();
 
-Experience:
-• 5+ years in full-stack development using React, Node.js, Python
-• Led development of 3 major web applications serving 10,000+ users
-• Implemented CI/CD pipelines reducing deployment time by 50%
-• Collaborated with cross-functional teams in Agile environment
+    // PDF (robust text extraction using pdfjs-dist)
+    if (file.type === 'application/pdf' || ext === 'pdf') {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfjsLib: any = await import('pdfjs-dist');
+      const workerSrc = (await import('pdfjs-dist/build/pdf.worker.mjs?url')).default;
+      pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
 
-Skills:
-JavaScript, TypeScript, React, Node.js, Python, SQL, Git, AWS, Docker
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      let text = '';
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const content = await page.getTextContent();
+        const strings = (content.items || []).map((item: any) => item.str);
+        text += strings.join(' ') + '\n';
+      }
+      return text.trim();
+    }
 
-Education:
-Bachelor of Science in Computer Science
-University of Technology, 2018
+    // DOCX (client-side using mammoth)
+    if (
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      ext === 'docx'
+    ) {
+      const arrayBuffer = await file.arrayBuffer();
+      const mammoth: any = await import('mammoth/mammoth.browser');
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return (result?.value || '').trim();
+    }
 
-Achievements:
-• AWS Certified Solutions Architect
-• Contributed to 5+ open source projects
-• Mentored 10+ junior developers`);
-        } else {
-          // For text files or simulated content
-          resolve(text || `Sample Resume Content
+    // TXT (simple)
+    if (file.type === 'text/plain' || ext === 'txt') {
+      return await file.text();
+    }
 
-John Doe - Full Stack Developer
-
-EXPERIENCE
-Senior Software Engineer | Tech Company | 2020-Present
-• Developed scalable web applications using modern frameworks
-• Optimized database queries improving performance by 40%
-• Mentored junior developers and led code reviews
-
-SKILLS
-Programming: JavaScript, Python, Java, TypeScript
-Frameworks: React, Angular, Node.js, Django
-Databases: PostgreSQL, MongoDB, Redis
-Cloud: AWS, Docker, Kubernetes
-
-EDUCATION
-Master of Science in Computer Science | 2019
-Bachelor of Science in Software Engineering | 2017`);
-        }
-      };
-      reader.readAsText(file);
-    });
+    // Legacy .doc or unknown types – best-effort fallback
+    try {
+      return await file.text();
+    } catch (e) {
+      throw new Error('Unsupported file format. Please upload PDF, DOCX, or TXT.');
+    }
   };
-
   const handleFileSelect = async (file: File) => {
     setSelectedFile(file);
     setIsProcessing(true);
@@ -156,9 +146,9 @@ Bachelor of Science in Software Engineering | 2017`);
       <input
         id="file-input"
         type="file"
-        accept=".pdf,.doc,.docx,.txt"
-        onChange={handleFileInput}
-        className="hidden"
+          accept=".pdf,.docx,.txt"
+          onChange={handleFileInput}
+          className="hidden"
       />
       
       <div className="text-center">
@@ -170,7 +160,7 @@ Bachelor of Science in Software Engineering | 2017`);
           Drag and drop your resume here, or click to browse
         </p>
         <p className="text-sm text-muted-foreground">
-          Supports PDF, DOC, DOCX, and TXT files
+          Supports PDF, DOCX, and TXT files
         </p>
       </div>
     </Card>
