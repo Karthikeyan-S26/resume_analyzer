@@ -33,7 +33,17 @@ export class ResumeAnalyzer {
   }
 
   private extractKeywords(text: string): string[] {
-    // Enhanced keyword extraction
+    // Build patterns and count precise occurrences (word-boundary / exact phrase)
+    const patterns = this.buildKeywordPatterns();
+    const counts = this.getKeywordCounts(text);
+    return Object.entries(counts)
+      .filter(([, c]) => c > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k]) => k);
+  }
+
+  // Create robust regex patterns per canonical keyword (handles plural, hyphens, REST/Java, CI/CD, Node.js)
+  private buildKeywordPatterns(): Array<{ key: string; regex: RegExp }> {
     const techKeywords = [
       'javascript', 'typescript', 'python', 'java', 'react', 'angular', 'vue',
       'node.js', 'express', 'django', 'flask', 'spring', 'sql', 'nosql',
@@ -56,22 +66,72 @@ export class ResumeAnalyzer {
     ];
 
     const allKeywords = [...techKeywords, ...softKeywords, ...experienceKeywords];
-    
-    return allKeywords.filter(keyword => 
-      text.includes(keyword) || 
-      keyword.split(' ').every(word => text.includes(word))
-    );
+
+    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const toRegex = (kw: string): RegExp => {
+      // Special handling for tricky cases
+      if (kw === 'node.js') return /\bnode\.?js\b/gi;
+      if (kw === 'ci/cd') return /\bci\s*\/?\s*cd\b/gi;
+      if (kw === 'full-stack') return /\bfull[-\s]?stack\b/gi;
+      if (kw === 'machine learning') return /\bmachine\s+learning\b/gi;
+      if (kw === 'data science') return /\bdata\s+science\b/gi;
+      if (kw === 'api') return /\bapis?\b/gi;
+      if (kw === 'rest') return /\brest(ful)?\b/gi;
+      if (kw === 'java') return /\bjava\b(?!\s*script)/gi; // avoid matching javascript
+
+      // Generic: match exact word or contiguous phrase with flexible whitespace/hyphen
+      if (kw.includes(' ')) {
+        const phrase = kw.split(' ').map(w => escape(w)).join('\\s+');
+        return new RegExp(`\\b${phrase}\\b`, 'gi');
+      }
+      if (kw.includes('-')) {
+        const parts = kw.split('-').map(p => escape(p)).join('[-\\s]?');
+        return new RegExp(`\\b${parts}\\b`, 'gi');
+      }
+      return new RegExp(`\\b${escape(kw)}\\b`, 'gi');
+    };
+
+    // Deduplicate by canonical key
+    const seen = new Set<string>();
+    const patterns: Array<{ key: string; regex: RegExp }> = [];
+    for (const kw of allKeywords) {
+      if (seen.has(kw)) continue;
+      seen.add(kw);
+      patterns.push({ key: kw, regex: toRegex(kw) });
+    }
+    return patterns;
+  }
+
+  private getKeywordCounts(text: string): Record<string, number> {
+    const patterns = this.buildKeywordPatterns();
+    const counts: Record<string, number> = {};
+    for (const { key, regex } of patterns) {
+      let count = 0;
+      const r = new RegExp(regex.source, 'gi');
+      const matches = text.match(r);
+      if (matches) count = matches.length;
+      if (count > 0) counts[key] = count;
+    }
+    return counts;
   }
 
   private findKeywordMatches(): string[] {
-    const resumeKeywords = this.extractKeywords(this.resumeText);
-    
+    // Use frequency-ranked intersection to avoid generic, always-on matches
     if (!this.jobDescription) {
-      return resumeKeywords.slice(0, 15); // Return top keywords if no job description
+      return this.extractKeywords(this.resumeText).slice(0, 15);
     }
 
-    const jobKeywords = this.extractKeywords(this.jobDescription);
-    return resumeKeywords.filter(keyword => jobKeywords.includes(keyword));
+    const resumeCounts = this.getKeywordCounts(this.resumeText);
+    const jobCounts = this.getKeywordCounts(this.jobDescription);
+
+    const matches = Object.keys(resumeCounts).filter((k) => jobCounts[k] && jobCounts[k] > 0);
+    matches.sort((a, b) => {
+      const jb = (jobCounts[b] || 0) - (jobCounts[a] || 0);
+      if (jb !== 0) return jb;
+      return (resumeCounts[b] || 0) - (resumeCounts[a] || 0);
+    });
+    return matches.slice(0, 20);
   }
 
   private findMissingKeywords(): string[] {
@@ -79,12 +139,12 @@ export class ResumeAnalyzer {
       return []; // Can't find missing keywords without job description
     }
 
-    const resumeKeywords = this.extractKeywords(this.resumeText);
-    const jobKeywords = this.extractKeywords(this.jobDescription);
-    
-    return jobKeywords
-      .filter(keyword => !resumeKeywords.includes(keyword))
-      .slice(0, 10); // Limit to top 10 missing keywords
+    const resumeCounts = this.getKeywordCounts(this.resumeText);
+    const jobCounts = this.getKeywordCounts(this.jobDescription);
+
+    const missing = Object.keys(jobCounts).filter((k) => !resumeCounts[k]);
+    missing.sort((a, b) => (jobCounts[b] || 0) - (jobCounts[a] || 0));
+    return missing.slice(0, 10);
   }
 
   private analyzeStructure(): number {
