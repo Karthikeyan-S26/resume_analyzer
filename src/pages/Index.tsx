@@ -45,13 +45,30 @@ const Index = () => {
       return;
     }
 
+    const plainText = resumeText.trim();
+    if (plainText.length < 50) {
+      console.warn('Resume text too short to analyze', { length: plainText.length, sample: plainText.slice(0, 120) });
+      toast({
+        title: "Could not read your resume",
+        description: "Your file seems image-based or empty. Please upload a text-based PDF/DOCX/TXT.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsAnalyzing(true);
+
+    console.log('Analyzing resume', {
+      resumeChars: plainText.length,
+      jdChars: jobDescription.trim().length,
+      resumeSample: plainText.slice(0, 160)
+    });
     
     // Simulate analysis delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1200));
     
     try {
-      const analyzer = new ResumeAnalyzer(resumeText, jobDescription);
+      const analyzer = new ResumeAnalyzer(plainText, jobDescription);
       const result = analyzer.analyze();
       setAnalysis(result);
       
@@ -60,6 +77,7 @@ const Index = () => {
         description: `Your resume scored ${result.overallScore}/100`,
       });
     } catch (error) {
+      console.error('Analysis error', error);
       toast({
         title: "Analysis failed",
         description: "Something went wrong during analysis",

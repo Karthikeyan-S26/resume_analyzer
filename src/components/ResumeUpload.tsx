@@ -3,6 +3,7 @@ import { Upload, FileText, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface ResumeUploadProps {
   onFileSelect: (file: File, text: string) => void;
@@ -12,6 +13,7 @@ export function ResumeUpload({ onFileSelect }: ResumeUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
 
   const extractTextFromFile = async (file: File): Promise<string> => {
     const ext = file.name.split('.').pop()?.toLowerCase();
@@ -64,9 +66,26 @@ export function ResumeUpload({ onFileSelect }: ResumeUploadProps) {
     
     try {
       const text = await extractTextFromFile(file);
-      onFileSelect(file, text);
+      console.log('Extracted resume text', { length: text.length, sample: text.slice(0, 160) });
+      const trimmed = text.trim();
+      if (trimmed.length < 50) {
+        toast({
+          title: 'Could not extract text',
+          description: 'Your resume looks like a scanned image. Please upload a text-based PDF/DOCX/TXT.',
+          variant: 'destructive',
+        });
+        setSelectedFile(null);
+        return;
+      }
+      onFileSelect(file, trimmed);
     } catch (error) {
       console.error('Error processing file:', error);
+      toast({
+        title: 'Failed to process file',
+        description: 'Unsupported or corrupted file. Try PDF, DOCX, or TXT.',
+        variant: 'destructive',
+      });
+      setSelectedFile(null);
     } finally {
       setIsProcessing(false);
     }

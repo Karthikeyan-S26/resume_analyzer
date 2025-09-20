@@ -5,8 +5,8 @@ export class ResumeAnalyzer {
   private jobDescription: string;
 
   constructor(resumeText: string, jobDescription: string = '') {
-    this.resumeText = resumeText.toLowerCase();
-    this.jobDescription = jobDescription.toLowerCase();
+    this.resumeText = resumeText;
+    this.jobDescription = jobDescription;
   }
 
   public analyze(): AnalysisData {
@@ -156,8 +156,9 @@ export class ResumeAnalyzer {
       'certifications', 'summary', 'objective'
     ];
 
+    const textLower = this.resumeText.toLowerCase();
     const foundSections = sections.filter(section => 
-      this.resumeText.includes(section)
+      textLower.includes(section)
     ).length;
 
     score += (foundSections / sections.length) * 40;
@@ -183,6 +184,8 @@ export class ResumeAnalyzer {
   private analyzeContent(): number {
     let score = 0;
 
+    const textLower = this.resumeText.toLowerCase();
+
     // Check word count (not too short, not too long)
     const wordCount = this.resumeText.split(/\s+/).length;
     if (wordCount >= 200 && wordCount <= 800) {
@@ -199,7 +202,7 @@ export class ResumeAnalyzer {
     ];
 
     const foundActionVerbs = actionVerbs.filter(verb => 
-      this.resumeText.includes(verb)
+      textLower.includes(verb)
     ).length;
 
     score += Math.min(25, (foundActionVerbs / actionVerbs.length) * 50);
@@ -215,7 +218,7 @@ export class ResumeAnalyzer {
     ];
 
     const foundProfessionalTerms = professionalTerms.filter(term => 
-      this.resumeText.includes(term)
+      textLower.includes(term)
     ).length;
 
     score += Math.min(30, (foundProfessionalTerms / professionalTerms.length) * 30);
