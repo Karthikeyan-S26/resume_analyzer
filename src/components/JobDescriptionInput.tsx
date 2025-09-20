@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -14,11 +13,11 @@ export function JobDescriptionInput({
   onJobDescriptionSubmit, 
   jobDescription 
 }: JobDescriptionInputProps) {
-  const [description, setDescription] = useState(jobDescription);
+  
 
   const handleSubmit = () => {
-    if (description.trim()) {
-      onJobDescriptionSubmit(description);
+    if (jobDescription.trim()) {
+      onJobDescriptionSubmit(jobDescription);
     }
   };
 
@@ -48,7 +47,7 @@ Preferred Qualifications:
 • Strong problem-solving and communication skills`;
 
   const useSampleDescription = () => {
-    setDescription(sampleJobDescription);
+    onJobDescriptionSubmit(sampleJobDescription);
   };
 
   return (
@@ -61,13 +60,13 @@ Preferred Qualifications:
       <div className="space-y-4">
         <Textarea
           placeholder="Paste the job description here to analyze keyword matches..."
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          value={jobDescription}
+          onChange={(e) => onJobDescriptionSubmit(e.target.value)}
           className="min-h-[200px] resize-none"
         />
         
         <div className="flex gap-2 flex-wrap">
-          <Button onClick={handleSubmit} disabled={!description.trim()}>
+          <Button onClick={handleSubmit} disabled={!jobDescription.trim()}>
             Analyze Keywords
           </Button>
           <Button variant="outline" onClick={useSampleDescription}>
